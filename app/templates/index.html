@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Validador BNF</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='logo.svg') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+</head>
+<body>
+    <div class="page-shell">
+        <header class="hero">
+            <div>
+                <p class="eyebrow">Teoria de lenguajes</p>
+                <h1>Validador de cadenas para gramaticas BNF</h1>
+                <p class="hero-copy">
+                    Escribe una gramatica, elige el simbolo inicial y valida multiples cadenas con
+                    explicaciones, derivacion paso a paso y arbol de parsing.
+                </p>
+            </div>
+            <div class="hero-card">
+                <div class="auth-card">
+                    <div class="auth-card-header">
+                        <strong>Cuenta y trabajos</strong>
+                        <span id="authStateBadge" class="hero-pill">
+                            {% if current_user %}Conectado{% else %}Invitado{% endif %}
+                        </span>
+                    </div>
+                    <p id="authWelcomeText" class="hero-copy auth-copy">
+                        {% if current_user %}
+                            Sesion iniciada como {{ current_user.username }}. Tus trabajos pueden guardarse en la base de datos.
+                        {% else %}
+                            Inicia sesion para guardar tu historial en SQLite y recuperarlo desde cualquier visita local.
+                        {% endif %}
+                    </p>
+                    <div id="authGuestView" class="{% if current_user %}hidden{% endif %}">
+                        <div class="auth-grid">
+                            <input id="authUsernameInput" class="auth-input" type="text" placeholder="usuario" autocomplete="username">
+                            <input id="authPasswordInput" class="auth-input" type="password" placeholder="contrasena" autocomplete="current-password">
+                        </div>
+                        <div class="history-toolbar">
+                            <button class="primary-button" id="loginBtn" type="button">Iniciar sesion</button>
+                            <button class="secondary-button" id="registerBtn" type="button">Crear cuenta</button>
+                        </div>
+                    </div>
+                    <div id="authUserView" class="{% if not current_user %}hidden{% endif %}">
+                        <div class="history-toolbar">
+                            <a class="secondary-button button-link" href="{{ url_for('web.library') }}">Mi biblioteca</a>
+                            <button class="secondary-button" id="loadCloudHistoryBtn" type="button">Actualizar nube</button>
+                            <button class="ghost-button" id="logoutBtn" type="button">Cerrar sesion</button>
+                        </div>
+                    </div>
+                    <span id="authMessage" class="status-message"></span>
+                </div>
+            </div>
+        </header>
+
+        <main class="workspace">
+            <section class="panel panel-grammar">
+                <div class="panel-heading">
+                    <div>
+                        <h2>Gramatica BNF</h2>
+                        <p>Usa no terminales entre &lt;&gt;, alternativas con | y epsilon como ε.</p>
+                    </div>
+                    <button class="secondary-button" id="loadExampleBtn" type="button">Cargar ejemplo</button>
+                </div>
+
+                <label class="field-label" for="grammarInput">Editor</label>
+                <textarea id="grammarInput" class="code-area" spellcheck="false"></textarea>
+                <div id="grammarErrorHint" class="grammar-error-hint hidden"></div>
+
+                <div class="panel-toolbar">
+                    <label class="field-label compact" for="startSymbolSelect">Simbolo inicial</label>
+                    <select id="startSymbolSelect"></select>
+                </div>
+
+                <div class="panel-toolbar">
+                    <label class="field-label compact" for="derivationModeSelect">Derivacion mostrada</label>
+                    <select id="derivationModeSelect">
+                        <option value="leftmost">Izquierda (recomendada)</option>
+                        <option value="rightmost">Derecha</option>
+                    </select>
+                </div>
+
+                <div class="history-toolbar">
+                    <button class="secondary-button" id="historyToggleBtn" type="button">Historial</button>
+                    <button class="secondary-button" id="saveSnapshotBtn" type="button">Guardar version</button>
+                    <button class="secondary-button" id="saveCloudBtn" type="button">Guardar en base de datos</button>
+                </div>
+
+                <div id="examplesDrawer" class="examples-drawer hidden">
+                    <div class="drawer-grid">
+                        {% for example in examples %}
+                        <button
+                            class="example-card"
+                            data-grammar="{{ example.grammar }}"
+                            data-inputs="{{ example.inputs }}"
+                            type="button"
+                        >
+                            <strong>{{ example.name }}</strong>
+                            <span>{{ example.description }}</span>
+                        </button>
+                        {% endfor %}
+                    </div>
+                </div>
+
+                <div id="historyDrawer" class="examples-drawer hidden">
+                    <div class="history-header">
+                        <div>
+                            <strong>Historial local</strong>
+                            <p>Se guarda en tu navegador. Puedes restaurar versiones anteriores.</p>
+                        </div>
+                        <button class="ghost-button" id="clearHistoryBtn" type="button">Limpiar historial</button>
+                    </div>
+                    <div id="historyList" class="history-list"></div>
+
+                    <div class="history-header cloud-history-header">
+                        <div>
+                            <strong>Historial en base de datos</strong>
+                            <p>Disponible al iniciar sesion. Cada usuario ve solo sus propios trabajos.</p>
+                        </div>
+                    </div>
+                    <div id="cloudHistoryList" class="history-list"></div>
+                </div>
+            </section>
+
+            <section class="panel panel-strings">
+                <div class="panel-heading">
+                    <div>
+                        <h2>Cadenas a evaluar</h2>
+                        <p>Ingresa una cadena por linea. Las lineas vacias se ignoran; usa ε para probar la cadena vacia.</p>
+                    </div>
+                </div>
+
+                <label class="field-label" for="stringsInput">Entradas</label>
+                <textarea id="stringsInput" class="code-area" spellcheck="false"></textarea>
+
+                <div class="actions">
+                    <button id="validateBtn" class="primary-button" type="button">Validar</button>
+                    <span id="statusMessage" class="status-message"></span>
+                </div>
+            </section>
+
+            <section class="panel panel-results">
+                <div class="panel-heading">
+                    <div>
+                        <h2>Resultados</h2>
+                        <p>Observa aceptacion, explicacion, derivacion y arbol del parseo.</p>
+                    </div>
+                </div>
+                <div id="resultsContainer" class="results-empty">
+                    Ejecuta una validacion para ver aqui los resultados.
+                </div>
+            </section>
+
+        </main>
+    </div>
+
+    <script>
+        window.INITIAL_EXAMPLES = {{ examples|tojson }};
+        window.INITIAL_USER = {{ current_user|tojson }};
+    </script>
+    <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+</body>
+</html>
