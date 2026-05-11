@@ -1,38 +1,62 @@
 from __future__ import annotations
 
-import sqlite3
+from datetime import datetime
 from typing import Any
 
 from flask import current_app, g
+from sqlalchemy import DateTime, ForeignKey, String, Text, create_engine, select
+from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column, relationship
 from werkzeug.security import check_password_hash, generate_password_hash
 
 
-SCHEMA = """
-CREATE TABLE IF NOT EXISTS users (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    username TEXT NOT NULL UNIQUE,
-    password_hash TEXT NOT NULL,
-    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE TABLE IF NOT EXISTS history_entries (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    user_id INTEGER NOT NULL,
-    label TEXT NOT NULL,
-    grammar TEXT NOT NULL,
-    inputs TEXT NOT NULL,
-    start_symbol TEXT,
-    derivation_mode TEXT NOT NULL,
-    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
-);
-"""
+class Base(DeclarativeBase):
+    pass
 
 
-def get_db() -> sqlite3.Connection:
+class User(Base):
+    __tablename__ = "users"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    username: Mapped[str] = mapped_column(String(120), unique=True, nullable=False)
+    password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+    history_entries: Mapped[list["HistoryEntry"]] = relationship(
+        back_populates="user",
+        cascade="all, delete-orphan",
+    )
+
+
+class HistoryEntry(Base):
+    __tablename__ = "history_entries"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    label: Mapped[str] = mapped_column(String(120), nullable=False)
+    grammar: Mapped[str] = mapped_column(Text, nullable=False)
+    inputs: Mapped[str] = mapped_column(Text, nullable=False)
+    start_symbol: Mapped[str | None] = mapped_column(String(120))
+    derivation_mode: Mapped[str] = mapped_column(String(20), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+    user: Mapped[User] = relationship(back_populates="history_entries")
+
+
+def init_db(app) -> None:
+    engine = create_engine(
+        app.config["DATABASE_URL"],
+        future=True,
+        pool_pre_ping=True,
+    )
+    app.extensions["db_engine"] = engine
+    with app.app_context():
+        Base.metadata.create_all(engine)
+
+
+def get_db() -> Session:
     if "db" not in g:
-        g.db = sqlite3.connect(current_app.config["DATABASE"])
-        g.db.row_factory = sqlite3.Row
+        engine = current_app.extensions["db_engine"]
+        g.db = Session(engine)
     return g.db
 
 
@@ -42,51 +66,36 @@ def close_db() -> None:
         db.close()
 
 
-def init_db(app) -> None:
-    with app.app_context():
-        db = get_db()
-        db.executescript(SCHEMA)
-        db.commit()
-
-
 def get_user_by_id(_app, user_id: int) -> dict[str, Any] | None:
-    row = get_db().execute(
-        "SELECT id, username, created_at FROM users WHERE id = ?",
-        (user_id,),
-    ).fetchone()
-    return dict(row) if row else None
+    user = get_db().get(User, user_id)
+    return serialize_user(user) if user else None
 
 
-def get_user_by_username(username: str) -> sqlite3.Row | None:
-    return get_db().execute(
-        "SELECT id, username, password_hash, created_at FROM users WHERE username = ?",
-        (username.lower(),),
-    ).fetchone()
+def get_user_by_username(username: str) -> User | None:
+    normalized = username.strip().lower()
+    stmt = select(User).where(User.username == normalized)
+    return get_db().execute(stmt).scalar_one_or_none()
 
 
 def create_user(username: str, password: str) -> dict[str, Any]:
     normalized = username.strip().lower()
-    db = get_db()
-    cursor = db.execute(
-        "INSERT INTO users (username, password_hash) VALUES (?, ?)",
-        (normalized, generate_password_hash(password)),
+    user = User(
+        username=normalized,
+        password_hash=generate_password_hash(password),
+        created_at=local_timestamp(),
     )
+    db = get_db()
+    db.add(user)
     db.commit()
-    return {
-        "id": cursor.lastrowid,
-        "username": normalized,
-    }
+    db.refresh(user)
+    return serialize_user(user)
 
 
 def authenticate_user(username: str, password: str) -> dict[str, Any] | None:
-    row = get_user_by_username(username.strip().lower())
-    if row is None or not check_password_hash(row["password_hash"], password):
+    user = get_user_by_username(username)
+    if user is None or not check_password_hash(user.password_hash, password):
         return None
-    return {
-        "id": row["id"],
-        "username": row["username"],
-        "created_at": row["created_at"],
-    }
+    return serialize_user(user)
 
 
 def create_history_entry(
@@ -97,44 +106,61 @@ def create_history_entry(
     start_symbol: str | None,
     derivation_mode: str,
 ) -> dict[str, Any]:
-    db = get_db()
-    cursor = db.execute(
-        """
-        INSERT INTO history_entries (user_id, label, grammar, inputs, start_symbol, derivation_mode)
-        VALUES (?, ?, ?, ?, ?, ?)
-        """,
-        (user_id, label, grammar, inputs, start_symbol, derivation_mode),
+    entry = HistoryEntry(
+        user_id=user_id,
+        label=label,
+        grammar=grammar,
+        inputs=inputs,
+        start_symbol=start_symbol,
+        derivation_mode=derivation_mode,
+        created_at=local_timestamp(),
     )
+    db = get_db()
+    db.add(entry)
     db.commit()
-    row = db.execute(
-        """
-        SELECT id, label, grammar, inputs, start_symbol, derivation_mode, created_at
-        FROM history_entries
-        WHERE id = ?
-        """,
-        (cursor.lastrowid,),
-    ).fetchone()
-    return dict(row)
+    db.refresh(entry)
+    return serialize_history_entry(entry)
 
 
 def list_history_entries(user_id: int) -> list[dict[str, Any]]:
-    rows = get_db().execute(
-        """
-        SELECT id, label, grammar, inputs, start_symbol, derivation_mode, created_at
-        FROM history_entries
-        WHERE user_id = ?
-        ORDER BY datetime(created_at) DESC, id DESC
-        """,
-        (user_id,),
-    ).fetchall()
-    return [dict(row) for row in rows]
+    stmt = (
+        select(HistoryEntry)
+        .where(HistoryEntry.user_id == user_id)
+        .order_by(HistoryEntry.created_at.desc(), HistoryEntry.id.desc())
+    )
+    rows = get_db().execute(stmt).scalars().all()
+    return [serialize_history_entry(row) for row in rows]
 
 
 def delete_history_entry(user_id: int, entry_id: int) -> bool:
     db = get_db()
-    cursor = db.execute(
-        "DELETE FROM history_entries WHERE id = ? AND user_id = ?",
-        (entry_id, user_id),
-    )
+    entry = db.get(HistoryEntry, entry_id)
+    if entry is None or entry.user_id != user_id:
+        return False
+    db.delete(entry)
     db.commit()
-    return cursor.rowcount > 0
+    return True
+
+
+def local_timestamp() -> datetime:
+    return datetime.now().astimezone()
+
+
+def serialize_user(user: User) -> dict[str, Any]:
+    return {
+        "id": user.id,
+        "username": user.username,
+        "created_at": user.created_at.isoformat(timespec="seconds"),
+    }
+
+
+def serialize_history_entry(entry: HistoryEntry) -> dict[str, Any]:
+    return {
+        "id": entry.id,
+        "label": entry.label,
+        "grammar": entry.grammar,
+        "inputs": entry.inputs,
+        "start_symbol": entry.start_symbol,
+        "derivation_mode": entry.derivation_mode,
+        "created_at": entry.created_at.isoformat(timespec="seconds"),
+    }

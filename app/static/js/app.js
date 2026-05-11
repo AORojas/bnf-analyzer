@@ -7,6 +7,7 @@ const loadExampleBtn = document.getElementById("loadExampleBtn");
 const examplesDrawer = document.getElementById("examplesDrawer");
 const startSymbolSelect = document.getElementById("startSymbolSelect");
 const grammarErrorHint = document.getElementById("grammarErrorHint");
+const workTitleInput = document.getElementById("workTitleInput");
 const historyToggleBtn = document.getElementById("historyToggleBtn");
 const saveSnapshotBtn = document.getElementById("saveSnapshotBtn");
 const historyDrawer = document.getElementById("historyDrawer");
@@ -57,8 +58,19 @@ function init() {
     }
 
     loadExampleBtn.addEventListener("click", () => {
+        const willOpen = examplesDrawer.classList.contains("hidden");
         examplesDrawer.classList.toggle("hidden");
         historyDrawer.classList.add("hidden");
+        loadExampleBtn.textContent = willOpen ? "Ocultar ejemplos" : "Ver ejemplos";
+        setStatus(
+            willOpen
+                ? "Selecciona un ejemplo de la lista para cargarlo en el editor."
+                : "Lista de ejemplos oculta.",
+            "neutral",
+        );
+        if (willOpen) {
+            examplesDrawer.scrollIntoView({ behavior: "smooth", block: "nearest" });
+        }
     });
 
     historyToggleBtn.addEventListener("click", () => {
@@ -71,6 +83,7 @@ function init() {
         button.addEventListener("click", () => {
             applyExample(examples[index]);
             examplesDrawer.classList.add("hidden");
+            loadExampleBtn.textContent = "Ver ejemplos";
         });
     });
 
@@ -78,6 +91,7 @@ function init() {
     stringsInput.addEventListener("input", scheduleAutosave);
     startSymbolSelect.addEventListener("change", scheduleAutosave);
     derivationModeSelect.addEventListener("change", scheduleAutosave);
+    workTitleInput.addEventListener("input", scheduleAutosave);
     validateBtn.addEventListener("click", validateGrammar);
     saveSnapshotBtn.addEventListener("click", () => saveSnapshot(true));
     saveCloudBtn.addEventListener("click", saveCloudSnapshot);
@@ -98,6 +112,7 @@ function init() {
 }
 
 function applyExample(example) {
+    workTitleInput.value = example.name ? `Ejemplo: ${example.name}` : "";
     grammarInput.value = example.grammar;
     stringsInput.value = example.inputs;
     syncStartSymbolsFromGrammar();
@@ -236,10 +251,11 @@ async function saveCloudSnapshot() {
 }
 
 function buildSnapshot(label) {
+    const customTitle = workTitleInput.value.trim();
     return {
         id: crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`,
         version: STORAGE_VERSION,
-        label,
+        label: customTitle || label || buildDefaultWorkTitle(),
         grammar: grammarInput.value,
         inputs: stringsInput.value,
         startSymbol: startSymbolSelect.value || "",
@@ -271,8 +287,8 @@ function renderHistory() {
                 <article class="history-item">
                     <div class="history-meta">
                         <div>
-                            <div class="history-title">${escapeHtml(formatHistoryDate(item.createdAt))}</div>
-                            <div class="field-label compact">${escapeHtml(item.startSymbol || "Simbolo automatico")}</div>
+                            <div class="history-title">${escapeHtml(item.label || "Trabajo guardado")}</div>
+                            <div class="field-label compact">${escapeHtml(formatHistoryDate(item.createdAt))}</div>
                         </div>
                     </div>
                     <p class="history-preview">${escapeHtml(preview)}</p>
@@ -382,6 +398,7 @@ async function restoreCloudItem(id) {
     }
     applySnapshot(
         {
+            label: item.label || "",
             grammar: item.grammar,
             inputs: item.inputs,
             startSymbol: item.start_symbol || "",
@@ -441,6 +458,7 @@ async function deleteCloudItem(id) {
 }
 
 function applySnapshot(snapshot, clearResultView) {
+    workTitleInput.value = snapshot.label || "";
     grammarInput.value = snapshot.grammar || "";
     stringsInput.value = snapshot.inputs || "";
     syncStartSymbolsFromGrammar();
@@ -454,6 +472,17 @@ function applySnapshot(snapshot, clearResultView) {
     if (clearResultView) {
         clearResults();
     }
+}
+
+function buildDefaultWorkTitle() {
+    const firstGrammarLine = grammarInput.value
+        .split("\n")
+        .map((line) => line.trim())
+        .find((line) => line);
+    if (firstGrammarLine) {
+        return `Trabajo: ${firstGrammarLine.slice(0, 60)}`;
+    }
+    return "Trabajo guardado";
 }
 
 function formatHistoryDate(isoString) {

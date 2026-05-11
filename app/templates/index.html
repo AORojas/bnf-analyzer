@@ -65,7 +65,7 @@
                         <h2>Gramatica BNF</h2>
                         <p>Usa no terminales entre &lt;&gt;, alternativas con | y epsilon como ε.</p>
                     </div>
-                    <button class="secondary-button" id="loadExampleBtn" type="button">Cargar ejemplo</button>
+                    <button class="secondary-button" id="loadExampleBtn" type="button">Ver ejemplos</button>
                 </div>
 
                 <label class="field-label" for="grammarInput">Editor</label>
@@ -83,6 +83,17 @@
                         <option value="leftmost">Izquierda (recomendada)</option>
                         <option value="rightmost">Derecha</option>
                     </select>
+                </div>
+
+                <div class="panel-toolbar">
+                    <label class="field-label compact" for="workTitleInput">Nombre del trabajo</label>
+                    <input
+                        id="workTitleInput"
+                        class="auth-input"
+                        type="text"
+                        maxlength="120"
+                        placeholder="Ej: Analizador de expresiones con potencia"
+                    >
                 </div>
 
                 <div class="history-toolbar">

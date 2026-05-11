@@ -8,7 +8,7 @@ def create_test_client(tmp_path: Path):
     app = create_app(
         {
             "TESTING": True,
-            "DATABASE": str(database_path),
+            "DATABASE_URL": f"sqlite:///{database_path.as_posix()}",
             "SECRET_KEY": "test-secret",
         }
     )

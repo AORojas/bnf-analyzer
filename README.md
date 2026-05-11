@@ -13,7 +13,7 @@ Aplicacion web educativa construida con Flask para validar cadenas contra gramat
 - Arbol de parsing textual.
 - Ejemplos precargados para practicar.
 - Autoguardado local e historial de versiones en el navegador.
-- Registro, login e historial persistente por usuario en SQLite.
+- Registro, login e historial persistente por usuario con SQLite local o PostgreSQL.
 
 ## Estructura
 
@@ -44,11 +44,74 @@ Luego abre `http://127.0.0.1:5000`.
 
 ## Usuarios e historial persistente
 
-- La aplicacion crea automaticamente una base SQLite en `instance/bnf_validator.sqlite3`.
+- La aplicacion usa `DATABASE_URL` si esta definida.
+- Si no defines `DATABASE_URL`, usa SQLite local en `instance/bnf_validator.sqlite3`.
 - Puedes crear una cuenta desde la tarjeta superior derecha.
 - Al iniciar sesion, se habilita el guardado de trabajos en base de datos.
 - Cada usuario solo ve y administra su propio historial persistente.
 - El historial local en `localStorage` sigue disponible como respaldo rapido del navegador.
+
+## PostgreSQL
+
+Para usar PostgreSQL, define una variable de entorno `DATABASE_URL` antes de iniciar la app. Ejemplo:
+
+```bash
+set DATABASE_URL=postgresql+psycopg://usuario:clave@localhost:5432/bnf_analyzer
+python run.py
+```
+
+La app crea las tablas automaticamente al arrancar.
+
+## Migracion de SQLite a PostgreSQL
+
+Si ya tienes datos en `instance/bnf_validator.sqlite3`, puedes copiarlos a PostgreSQL con:
+
+```bash
+python scripts/migrate_sqlite_to_postgres.py --sqlite-path instance/bnf_validator.sqlite3 --database-url postgresql+psycopg://usuario:clave@localhost:5432/bnf_analyzer
+```
+
+El script:
+
+- crea las tablas destino si no existen
+- migra usuarios
+- migra historial
+- evita duplicar registros si vuelves a ejecutarlo
+
+## Deploy en Render
+
+El proyecto ya incluye un archivo [render.yaml](./render.yaml) para desplegar:
+
+- un `Web Service` Flask con `gunicorn run:app`
+- una base `Render Postgres`
+- variables `DATABASE_URL` y `SECRET_KEY`
+
+### Opcion A: deploy automatico con Blueprint
+
+1. Sube el repo a GitHub.
+2. En Render entra a `New > Blueprint`.
+3. Conecta el repositorio.
+4. Render detectara `render.yaml` y te mostrara:
+   - `bnf-analyzer` como web service
+   - `bnf-analyzer-db` como Postgres
+5. Confirma el deploy.
+
+### Opcion B: migrar datos locales antes o despues
+
+Si quieres llevar tus datos actuales a Render:
+
+1. Despliega el proyecto con el `render.yaml`.
+2. Copia la `External Database URL` o la `Internal Database URL` desde Render Postgres.
+3. Ejecuta localmente:
+
+```bash
+python scripts/migrate_sqlite_to_postgres.py --sqlite-path instance/bnf_validator.sqlite3 --database-url "postgresql+psycopg://usuario:clave@host:5432/bnf_analyzer"
+```
+
+### Notas de Render
+
+- El `buildCommand` configurado es `pip install -r requirements.txt`.
+- El `startCommand` configurado es `gunicorn run:app`.
+- Render entrega una `connectionString` de Postgres; la app la normaliza automaticamente para usar `psycopg`.
 
 ## Formato BNF soportado
 

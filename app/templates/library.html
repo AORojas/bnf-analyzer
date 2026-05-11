@@ -120,6 +120,7 @@
                 localStorage.setItem(
                     CLOUD_IMPORT_KEY,
                     JSON.stringify({
+                        label: entry.label || "",
                         grammar: entry.grammar,
                         inputs: entry.inputs,
                         startSymbol: entry.start_symbol || "",
