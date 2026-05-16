@@ -2,12 +2,14 @@ from pathlib import Path
 import os
 
 from flask import Flask, g, session
+from dotenv import load_dotenv
 
 from app.persistence import close_db, get_user_by_id, init_db
 from app.routes.web import web_bp
 
 
 def create_app(test_config: dict | None = None) -> Flask:
+    load_dotenv()
     app = Flask(__name__, instance_relative_config=True)
     default_sqlite_path = Path(app.instance_path) / "bnf_validator.sqlite3"
     app.config.update(

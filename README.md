@@ -42,6 +42,34 @@ python run.py
 
 Luego abre `http://127.0.0.1:5000`.
 
+## Variables de entorno locales
+
+Para desarrollo local ahora puedes usar un archivo `.env`.
+
+1. Crea una copia de `.env.example`:
+
+```bash
+copy .env.example .env
+```
+
+2. Edita `.env` con tus valores.
+
+Ejemplo para SQLite local:
+
+```env
+SECRET_KEY=dev-bnf-validator-secret
+DATABASE_URL=sqlite:///instance/bnf_validator.sqlite3
+```
+
+Ejemplo para PostgreSQL local:
+
+```env
+SECRET_KEY=dev-bnf-validator-secret
+DATABASE_URL=postgresql+psycopg://usuario:clave@localhost:5432/bnf_analyzer
+```
+
+La aplicacion carga `.env` automaticamente al iniciar.
+
 ## Usuarios e historial persistente
 
 - La aplicacion usa `DATABASE_URL` si esta definida.
@@ -84,6 +112,8 @@ El proyecto ya incluye un archivo [render.yaml](./render.yaml) para desplegar:
 - un `Web Service` Flask con `gunicorn run:app`
 - una base `Render Postgres`
 - variables `DATABASE_URL` y `SECRET_KEY`
+
+En Render no necesitas `.env`; las variables se toman del `render.yaml` y de los recursos creados por la plataforma.
 
 ### Opcion A: deploy automatico con Blueprint
 
