@@ -1,0 +1,29 @@
+# Entorno y venv
+.env
+.env.local
+.venv/
+venv/
+
+# Python compiled
+__pycache__/
+*.py[cod]
+*$py.class
+.Python
+
+# Testing
+.pytest_cache/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# BD local
+instance/
+*.sqlite3
+
+# Temp
+cookies.txt

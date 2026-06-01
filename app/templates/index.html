@@ -33,7 +33,7 @@
                         {% if current_user %}
                             Sesion iniciada como {{ current_user.username }}. Tus trabajos pueden guardarse en la base de datos.
                         {% else %}
-                            Inicia sesion para guardar tu historial en SQLite y recuperarlo desde cualquier visita local.
+                            Inicia sesion para guardar tu historial y recuperarlo desde cualquier visita local.
                         {% endif %}
                     </p>
                     <div id="authGuestView" class="{% if current_user %}hidden{% endif %}">
