@@ -48,3 +48,8 @@ def normalize_database_url(url: str) -> str:
     if url.startswith("postgresql://") and "+psycopg" not in url:
         return url.replace("postgresql://", "postgresql+psycopg://", 1)
     return url
+
+
+# Export an application instance so "gunicorn app:app" works when
+# the platform invokes the package directly.
+app = create_app()
