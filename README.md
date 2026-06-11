@@ -143,6 +143,31 @@ python scripts/migrate_sqlite_to_postgres.py --sqlite-path instance/bnf_validato
 - El `startCommand` configurado es `gunicorn run:app`.
 - Render entrega una `connectionString` de Postgres; la app la normaliza automaticamente para usar `psycopg`.
 
+## Deploy con Vercel + Supabase
+
+Esta aplicacion puede separarse en dos capas:
+
+- Frontend estatico en Vercel: `frontend/` contiene una copia de la interfaz de usuario que puede alojarse como sitio estatico.
+- Base de datos en Supabase: usa una base PostgreSQL real y permanente.
+
+### Flujo recomendado
+
+1. Despliega `frontend/` a Vercel como sitio estatico.
+2. Despliega el backend Flask a un host Python que no duerma o que soporte sessions cross-origin.
+3. En el backend, configura:
+   - `DATABASE_URL` con la cadena de conexion de Supabase.
+   - `SECRET_KEY` con un valor seguro.
+   - `CORS_ALLOWED_ORIGINS` con el dominio de tu frontend Vercel, por ejemplo `https://mi-app.vercel.app`.
+4. En `frontend/index.html`, asigna `window.API_BASE_URL` al URL de tu backend.
+
+### Ventajas
+
+- Vercel aloja la interfaz de usuario de forma instantanea y sin dormir.
+- Supabase mantiene la base de datos activa si recibe uso regular.
+- El backend Flask sigue ejecutando la validacion de gramatica y maneja autenticacion/historial.
+
+> Nota: Supabase no ejecuta el backend Python directamente. Este repositorio usa Supabase solo como base de datos PostgreSQL para el backend.
+
 ## Formato BNF soportado
 
 ```bnf
